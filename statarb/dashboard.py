@@ -73,29 +73,55 @@ def chart_equity_curve(
     wf_equity: Optional[pd.Series] = None,
     initial_capital: float = 100_000,
 ) -> go.Figure:
-    """Equity curve with optional OOS overlay."""
+    """Equity curve — OOS is the headline (thick solid green), IS is context (thin muted blue)."""
     fig = go.Figure()
     eq = equity_curve["equity"]
-    fig.add_trace(go.Scatter(x=eq.index, y=eq, name="Strategy (IS)", line=dict(color=BLUE, width=2),
-                             hovertemplate="$%{y:,.0f}<extra>Strategy</extra>"))
-    if wf_equity is not None and len(wf_equity) > 0:
-        fig.add_trace(go.Scatter(x=wf_equity.index, y=wf_equity, name="Strategy (OOS)",
-                                 line=dict(color=GREEN, width=2, dash="dot"),
-                                 hovertemplate="$%{y:,.0f}<extra>OOS</extra>"))
-    fig.add_hline(y=initial_capital, line_color=BG_BORDER, line_width=1, line_dash="dash",
-                  annotation_text="Starting capital", annotation_font_color=TEXT_MUT)
 
-    # Y-axis: pad 5% above/below actual range so moves are visible
-    all_vals = list(eq)
-    if wf_equity is not None and len(wf_equity) > 0:
-        all_vals += list(wf_equity)
-    y_min = min(all_vals)
-    y_max = max(all_vals)
-    pad   = (y_max - y_min) * 0.05 or initial_capital * 0.02
-    fig.update_layout(**_layout_defaults("Equity Curve"))
+    has_oos = wf_equity is not None and len(wf_equity) > 0
+
+    if has_oos:
+        # OOS only — rebase to initial_capital so the curve starts at $100k
+        # and gains/losses are immediately readable. Showing the IS curve
+        # alongside compresses the axis because IS spans a wider dollar range.
+        oos_start   = float(wf_equity.iloc[0])
+        oos_rebased = (wf_equity / oos_start) * initial_capital
+
+        fig.add_trace(go.Scatter(
+            x=oos_rebased.index, y=oos_rebased,
+            name="Strategy (OOS)",
+            line=dict(color=GREEN, width=2.5),
+            fill="tozeroy",
+            fillcolor="rgba(63,185,80,0.07)",
+            hovertemplate="$%{y:,.0f}<extra>OOS Walk-Forward</extra>",
+        ))
+        plot_vals = list(oos_rebased)
+    else:
+        # Fallback: show IS curve when no OOS data available
+        fig.add_trace(go.Scatter(
+            x=eq.index, y=eq,
+            name="Strategy (IS)",
+            line=dict(color=BLUE, width=2),
+            hovertemplate="$%{y:,.0f}<extra>IS</extra>",
+        ))
+        plot_vals = list(eq)
+
+    fig.add_hline(
+        y=initial_capital, line_color=BG_BORDER, line_width=1, line_dash="dash",
+        annotation_text="Starting capital", annotation_font_color=TEXT_MUT,
+    )
+
+    # Y-axis: minimum ±5% of capital headroom so small OOS moves are always visible
+    y_min = min(plot_vals)
+    y_max = max(plot_vals)
+    natural_pad = (y_max - y_min) * 0.15
+    min_pad     = initial_capital * 0.05
+    pad         = max(natural_pad, min_pad)
+
+    fig.update_layout(**_layout_defaults("Equity Curve (OOS Walk-Forward)" if has_oos else "Equity Curve"))
     fig.update_layout(yaxis=dict(
         tickformat="$,.0f", gridcolor=GRID,
-        range=[y_min - pad, y_max + pad],
+        range=[min(y_min, initial_capital) - pad,
+               max(y_max, initial_capital) + pad],
         title=dict(text="Portfolio Value", font=dict(color=TEXT_MUT)),
     ))
     return fig
@@ -150,10 +176,11 @@ def chart_pair_pnl(pair_pnl: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         xaxis=dict(
             tickformat="$,.0f", gridcolor=GRID,
-            range=[-(x_abs * 1.4), x_abs * 1.4],
+            range=[-(x_abs * 1.5), x_abs * 1.6],   # extra right room for outside labels
             title=dict(text="Net P&L ($)", font=dict(color=TEXT_MUT)),
         ),
-        yaxis=dict(gridcolor=GRID),
+        yaxis=dict(gridcolor=GRID, automargin=True),   # automargin prevents label clipping
+        margin=dict(l=90, r=30, t=45, b=45),           # explicit left margin for pair names
     )
     return fig
 
@@ -200,10 +227,15 @@ def chart_trade_distribution(trades: pd.DataFrame) -> go.Figure:
         barmode="overlay",
         showlegend=True,
     )
+    # Enforce a minimum x-axis span of $500 so tightly clustered trades
+    # don't compress the axis into an unreadable single column
+    x_span = max(500.0, rng * 1.5)
+    x_center = float(pnl.mean())
     fig.update_layout(
         yaxis=dict(gridcolor=GRID, title=dict(text="# Trades", font=dict(color=TEXT_MUT))),
         xaxis=dict(
             tickprefix="$", tickformat=",.0f", gridcolor=GRID,
+            range=[x_center - x_span / 2, x_center + x_span / 2],
             title=dict(text="Net P&L per Trade ($)", font=dict(color=TEXT_MUT)),
         ),
     )
@@ -544,11 +576,10 @@ def build_dashboard(
     charts = {}
 
     charts["equity"]      = chart_equity_curve(equity_curve, wf_equity)
-    charts["drawdown"]    = chart_drawdown(equity_curve)
+    charts["drawdown"]    = chart_drawdown(equity_curve)      # IS: continuous curve needed
     charts["pair_pnl"]    = chart_pair_pnl(pair_pnl)
     charts["trade_dist"]  = chart_trade_distribution(trades)
-    charts["rolling_sh"]  = chart_rolling_sharpe(equity_curve)
-    charts["monthly"]     = chart_monthly_returns(equity_curve)
+    charts["monthly"]     = chart_monthly_returns(equity_curve)  # IS: full date range
 
     if best_pair and best_pair in spread_data:
         charts["spread"]  = chart_spread_zscore(
@@ -620,8 +651,6 @@ def build_dashboard(
 
   <div class="panel">{to_div(charts['pair_pnl'], 300)}</div>
   <div class="panel">{to_div(charts['trade_dist'], 300)}</div>
-
-  <div class="panel full">{to_div(charts['rolling_sh'], 260)}</div>
 
   {'<div class="panel full">' + to_div(charts['spread'], 520) + '</div>' if 'spread' in charts else ''}
   {'<div class="panel full">' + to_div(charts['wf_folds'], 280) + '</div>' if 'wf_folds' in charts else ''}
