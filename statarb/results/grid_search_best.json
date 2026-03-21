@@ -1,14 +1,14 @@
 {
   "entry_z": 2.4,
   "exit_z": 0.5,
-  "stop_z": 4.0,
-  "mean_oos_sharpe": 1.8,
-  "std_oos_sharpe": 0.1958,
-  "adj_sharpe": 1.7021,
-  "mean_oos_return_pct": 4.653,
-  "mean_max_dd_pct": 1.197,
+  "stop_z": 3.2,
+  "mean_oos_sharpe": 1.2913,
+  "std_oos_sharpe": 0.2831,
+  "adj_sharpe": 0.9498,
+  "mean_oos_return_pct": 2.77,
+  "mean_max_dd_pct": 1.147,
   "n_folds_profitable": 3,
-  "total_oos_trades": 25,
-  "is_sparse": false,
-  "config_snippet": "\n# \u2500\u2500 Paste into config.py \u2192 SignalConfig \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nentry_z = 2.4\nexit_z  = 0.5\nstop_z  = 4.0\n"
+  "total_oos_trades": 12,
+  "is_sparse": true,
+  "config_snippet": "\n# \u2500\u2500 Paste into config.py \u2192 SignalConfig \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nentry_z = 2.4\nexit_z  = 0.5\nstop_z  = 3.2\n"
 }

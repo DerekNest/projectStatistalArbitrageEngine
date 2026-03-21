@@ -73,51 +73,30 @@ def chart_equity_curve(
     wf_equity: Optional[pd.Series] = None,
     initial_capital: float = 100_000,
 ) -> go.Figure:
-    """Equity curve — OOS is the headline (thick solid green), IS is context (thin muted blue)."""
+    """Equity curve — always shows OOS stitched curve rebased to $100k start."""
     fig = go.Figure()
     eq = equity_curve["equity"]
 
-    has_oos = wf_equity is not None and len(wf_equity) > 0
+    # Rebase so curve always starts exactly at initial_capital
+    eq_rebased = (eq / float(eq.iloc[0])) * initial_capital
 
-    if has_oos:
-        # OOS only — rebase to initial_capital so the curve starts at $100k
-        # and gains/losses are immediately readable. Showing the IS curve
-        # alongside compresses the axis because IS spans a wider dollar range.
-        oos_start   = float(wf_equity.iloc[0])
-        oos_rebased = (wf_equity / oos_start) * initial_capital
-
-        fig.add_trace(go.Scatter(
-            x=oos_rebased.index, y=oos_rebased,
-            name="Strategy (OOS)",
-            line=dict(color=GREEN, width=2.5),
-            fill="tozeroy",
-            fillcolor="rgba(63,185,80,0.07)",
-            hovertemplate="$%{y:,.0f}<extra>OOS Walk-Forward</extra>",
-        ))
-        plot_vals = list(oos_rebased)
-    else:
-        # Fallback: show IS curve when no OOS data available
-        fig.add_trace(go.Scatter(
-            x=eq.index, y=eq,
-            name="Strategy (IS)",
-            line=dict(color=BLUE, width=2),
-            hovertemplate="$%{y:,.0f}<extra>IS</extra>",
-        ))
-        plot_vals = list(eq)
+    fig.add_trace(go.Scatter(
+        x=eq_rebased.index, y=eq_rebased,
+        name="Strategy (OOS)",
+        line=dict(color=GREEN, width=2.5),
+        hovertemplate="$%{y:,.0f}<extra>OOS Walk-Forward</extra>",
+    ))
 
     fig.add_hline(
         y=initial_capital, line_color=BG_BORDER, line_width=1, line_dash="dash",
         annotation_text="Starting capital", annotation_font_color=TEXT_MUT,
     )
 
-    # Y-axis: minimum ±5% of capital headroom so small OOS moves are always visible
-    y_min = min(plot_vals)
-    y_max = max(plot_vals)
-    natural_pad = (y_max - y_min) * 0.15
-    min_pad     = initial_capital * 0.05
-    pad         = max(natural_pad, min_pad)
+    y_min = float(eq_rebased.min())
+    y_max = float(eq_rebased.max())
+    pad   = max((y_max - y_min) * 0.15, initial_capital * 0.05)
 
-    fig.update_layout(**_layout_defaults("Equity Curve (OOS Walk-Forward)" if has_oos else "Equity Curve"))
+    fig.update_layout(**_layout_defaults("Equity Curve (OOS Walk-Forward)"))
     fig.update_layout(yaxis=dict(
         tickformat="$,.0f", gridcolor=GRID,
         range=[min(y_min, initial_capital) - pad,
@@ -130,8 +109,10 @@ def chart_equity_curve(
 def chart_drawdown(equity_curve: pd.DataFrame) -> go.Figure:
     """Underwater equity chart."""
     eq = equity_curve["equity"]
+    # Rebase to 100k so fold-boundary discontinuities don't corrupt cummax
+    eq = eq / float(eq.iloc[0]) * 100_000
     rolling_max = eq.cummax()
-    dd = (eq - rolling_max) / rolling_max * 100
+    dd = ((eq - rolling_max) / rolling_max * 100).clip(lower=-100)
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=dd.index, y=dd, fill="tozeroy", name="Drawdown",
                              line=dict(color=RED, width=1), fillcolor="rgba(248,81,73,0.15)",
@@ -376,9 +357,11 @@ def chart_wf_folds(fold_summary: pd.DataFrame) -> go.Figure:
         y=valid["total_return_pct"],
         marker_color=colours,
         text=bar_text,
+        texttemplate="%{text}",      # renders bar_text on the bar
         textposition="outside",
         textfont=dict(size=10, color=TEXT_PRI),
-        width=0.5,                 # fixed width prevents hairline on single-fold
+        width=0.5,
+        customdata=valid[["sharpe", "max_dd_pct", "n_trades"]].values,
         hovertemplate=(
             "<b>%{x}</b><br>"
             "Return: %{y:+.2f}%<br>"
@@ -386,7 +369,6 @@ def chart_wf_folds(fold_summary: pd.DataFrame) -> go.Figure:
             "Max DD: %{customdata[1]:.2f}%<br>"
             "Trades: %{customdata[2]}<extra></extra>"
         ),
-        customdata=valid[["sharpe", "max_dd_pct", "n_trades"]].values,
     ))
 
     fig.add_hline(y=0, line_color=BG_BORDER, line_width=1)
@@ -575,7 +557,7 @@ def build_dashboard(
 
     charts = {}
 
-    charts["equity"]      = chart_equity_curve(equity_curve, wf_equity)
+    charts["equity"]      = chart_equity_curve(equity_curve)
     charts["drawdown"]    = chart_drawdown(equity_curve)      # IS: continuous curve needed
     charts["pair_pnl"]    = chart_pair_pnl(pair_pnl)
     charts["trade_dist"]  = chart_trade_distribution(trades)
@@ -783,7 +765,7 @@ if __name__ == "__main__":
 
         # The equity chart shows IS curve as context + OOS as the headline overlay
         # Pass IS equity as equity_curve (shown in blue), OOS as wf_equity (dotted green)
-        display_equity   = is_equity      # IS: full 6-year context
+        display_equity   = oos_equity_df      # IS: full 6-year context
         display_trades   = all_fold_trades if not all_fold_trades.empty else is_trades
         display_pair_pnl = oos_pair_pnl
         display_metrics  = oos_metrics    # HEADLINE: OOS metrics in summary card
