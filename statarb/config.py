@@ -251,6 +251,4 @@ def _build_config() -> "Config":
 
     return cfg
 
-
-# Convenience singleton — import this in other modules
 CFG = _build_config()
