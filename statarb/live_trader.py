@@ -57,8 +57,8 @@ log = logging.getLogger(__name__)
 
 PAPER_TRADING     = True   # ALWAYS start True — change only after 4+ weeks paper
 
-ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY",    "PKEUHUH6YUZQVP6A3B6A5KTMRX")
-ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "6dHgEe6oC16PaBydtHbBqEz5wqXt5q6yajE1Mjt4dnFa")
+ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY",    "PK5GXRKMY6PQNZVYB5G5AFNKFQ")
+ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "57jckVyEo7g3njjpX3PmVpKqHLDrZsPxzzPWsdYpdT22")
 
 BASE_URL = (
     "https://paper-api.alpaca.markets"
