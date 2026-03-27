@@ -15,15 +15,19 @@ All orders are submitted to paper trading — no real money involved.
 """
 
 import os
+import sys
 import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
+# Add parent directory to path so config, spread_model, etc. can be imported
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import yfinance as yf
 
-ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY",    "YOUR_KEY_HERE")
-ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "YOUR_SECRET_HERE")
+ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY",    "PK5GXRKMY6PQNZVYB5G5AFNKFQ")
+ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "57jckVyEo7g3njjpX3PmVpKqHLDrZsPxzzPWsdYpdT22")
 BASE_URL          = "https://paper-api.alpaca.markets"
 
 HEADERS = {
