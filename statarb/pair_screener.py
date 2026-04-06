@@ -57,6 +57,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
+from sklearn.decomposition import PCA
+from sklearn.metrics.pairwise import cosine_similarity
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
 from statsmodels.tsa.stattools import adfuller, coint
@@ -173,7 +175,6 @@ def hurst_exponent(series: pd.Series, max_lag: int = 100) -> float:
     return float(poly[0])
 
 
-
 def chow_structural_break_test(
     spread: pd.Series,
     split_ratio: float = 0.5,
@@ -269,6 +270,42 @@ def score_pair(result: PairResult) -> float:
     score = 0.40 * p_score + 0.25 * hl_score + 0.20 * h_score + 0.15 * corr_score
     return float(score)
 
+# ---------------------------------------------------------------------------
+# PCA Factor Validation for Cross-Sector Pairs
+# ---------------------------------------------------------------------------
+
+def validate_cross_sector_pairs(returns_df: pd.DataFrame, variance_target: float = 0.80, sim_threshold: float = 0.85) -> list[tuple[str, str]]:
+    """
+    Extracts latent factors via PCA and returns a list of valid stock pairs
+    based on the cosine similarity of their factor loadings.
+    """
+    # standardize returns (zero mean, unit variance)
+    returns_std = (returns_df - returns_df.mean()) / returns_df.std()
+    returns_std = returns_std.fillna(0) # handle any missing data
+    
+    tickers = returns_std.columns.tolist()
+    
+    # fit pca to explain the target variance
+    pca = PCA(n_components=variance_target)
+    pca.fit(returns_std)
+    
+    # the components_ matrix shape is (n_components, n_features)
+    # transpose it so each row represents a stock's loading across all factors
+    loadings = pca.components_.T 
+    
+    # compute the pairwise cosine similarity matrix
+    sim_matrix = cosine_similarity(loadings)
+    
+    valid_pairs = []
+    n = len(tickers)
+    
+    # extract pairs that meet the threshold (upper triangle only to avoid duplicates)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if sim_matrix[i, j] >= sim_threshold:
+                valid_pairs.append((tickers[i], tickers[j]))
+                
+    return valid_pairs
 
 # ---------------------------------------------------------------------------
 # Main screening function
@@ -279,6 +316,7 @@ def screen_pairs(
     sector: str,
     cfg: ScreenConfig = None,
     lookback_days: Optional[int] = None,
+    candidate_pairs: Optional[List[Tuple[str, str]]] = None
 ) -> List[PairResult]:
     """
     Test all pairs in a sector and return those passing all filters.
@@ -291,6 +329,7 @@ def screen_pairs(
     lookback_days: if set, cointegration tests use only the trailing N days.
                    The Chow test ALWAYS uses the full prices history so it can
                    detect regime changes even when trading on a short window.
+    candidate_pairs: optional list of pre-filtered pairs (used for cross-sector).
 
     DESIGN RATIONALE — decoupled windows:
       - Cointegration screening: trailing lookback_days (default: full history)
@@ -325,7 +364,14 @@ def screen_pairs(
             log.info(f"  [{sector}] Using full history ({len(prices)} bars) for cointegration tests")
 
     tickers = list(prices.columns)
-    candidates = list(itertools.combinations(tickers, 2))
+    
+    # Use pre-supplied candidates if available (e.g. from PCA cross-sector validation).
+    # Otherwise, generate all intra-sector combinations.
+    if candidate_pairs:
+        candidates = candidate_pairs
+    else:
+        candidates = list(itertools.combinations(tickers, 2))
+        
     log.info(f"  [{sector}] Testing {len(candidates)} pairs from {len(tickers)} tickers "
              f"({len(coint_prices)} bars for coint, {len(prices)} for Chow)")
 
@@ -352,7 +398,7 @@ def screen_pairs(
             ret_y, ret_x = ret_y.align(ret_x, join="inner")
             correlation = float(ret_y.corr(ret_x))
 
-            if abs(correlation) < cfg.min_correlation:
+            if abs(correlation) < getattr(cfg, "min_correlation", 0.70):
                 _f["corr"] += 1; continue
 
             # --- STEP 2: Engle-Granger cointegration test ---
@@ -364,7 +410,7 @@ def screen_pairs(
             )
 
             _coint_pvals.append((coint_pvalue, ticker_y, ticker_x))
-            if coint_pvalue > cfg.coint_pvalue_threshold:
+            if coint_pvalue > getattr(cfg, "coint_pvalue_threshold", 0.08):
                 _f["coint"] += 1; continue
 
             # --- STEP 3: Estimate hedge ratio and spread ---
@@ -373,13 +419,13 @@ def screen_pairs(
             # --- STEP 4: ADF test on the spread directly ---
             adf_stat, adf_pvalue, *_ = adfuller(spread, maxlag=1, autolag=None)
 
-            if adf_pvalue > cfg.adf_pvalue_threshold:
+            if adf_pvalue > getattr(cfg, "adf_pvalue_threshold", 0.10):
                 _f["adf"] += 1; continue
 
             # --- STEP 5: Half-life ---
             half_life = estimate_half_life(spread)
 
-            if not (cfg.min_half_life <= half_life <= cfg.max_half_life):
+            if not (getattr(cfg, "min_half_life", 5) <= half_life <= getattr(cfg, "max_half_life", 126)):
                 _f["hl"] += 1; continue
 
             # --- STEP 6: Hurst exponent ---
@@ -460,11 +506,57 @@ def screen_all_sectors(
     cfg = cfg or CFG.screen
     all_results = []
 
+    # 1. Standard intra-sector screening
     for sector, prices in sector_universe.items():
         log.info(f"\nScreening sector: {sector.upper()}")
         sector_results = screen_pairs(prices, sector, cfg, lookback_days=lookback_days)
         # Take top N from each sector
         all_results.extend(sector_results[:top_n_per_sector])
+
+    # 2. Cross-sector statistical factor validation
+    if getattr(cfg, "cross_sector", False):
+        log.info("\nRunning PCA cross-sector factor validation...")
+        
+        # combine all sector dataframes into one mega-dataframe
+        all_prices = pd.concat(sector_universe.values(), axis=1)
+        # drop duplicate columns (tickers that might appear in multiple sectors)
+        all_prices = all_prices.loc[:, ~all_prices.columns.duplicated()]
+        
+        # compute log returns for the entire universe
+        if lookback_days and lookback_days > 0 and len(all_prices) > lookback_days:
+            coint_prices = all_prices.iloc[-lookback_days:]
+        else:
+            coint_prices = all_prices
+            
+        log_returns = np.log(coint_prices / coint_prices.shift(1)).dropna()
+        
+        # run pca validation to extract candidate pairs
+        var_target = getattr(cfg, "factor_variance_target", 0.80)
+        sim_target = getattr(cfg, "factor_sim_threshold", 0.85)
+        cross_candidates = validate_cross_sector_pairs(log_returns, var_target, sim_target)
+        
+        # filter out pairs that are already in the same sector (they were tested in step 1)
+        # we only want cross-sector pairs here
+        true_cross_candidates = []
+        for y, x in cross_candidates:
+            y_sector = next((s for s, t_list in CFG.sectors.items() if y in t_list), "unknown")
+            x_sector = next((s for s, t_list in CFG.sectors.items() if x in t_list), "unknown")
+            if y_sector != x_sector:
+                true_cross_candidates.append((y, x))
+                
+        log.info(f"PCA validation found {len(true_cross_candidates)} valid cross-sector candidates.")
+        
+        if true_cross_candidates:
+            # run the standard screening pipeline on these validated cross-sector pairs
+            cross_results = screen_pairs(
+                all_prices, 
+                "cross_sector", 
+                cfg, 
+                lookback_days=lookback_days, 
+                candidate_pairs=true_cross_candidates
+            )
+            # take top n cross-sector pairs overall
+            all_results.extend(cross_results[:top_n_per_sector * 2])
 
     if not all_results:
         log.warning("No pairs survived screening!")
@@ -503,13 +595,13 @@ if __name__ == "__main__":
     os.makedirs("results", exist_ok=True)
 
     print("\n" + "="*60)
-    print("  SPRINT 1 — PAIR SCREENER")
+    print("  SPRINT 1 — PAIR SCREENER (WITH PCA CROSS-SECTOR)")
     print("="*60)
 
     # Load data
     all_tickers = [t for tickers in cfg.sectors.values() for t in tickers]
-    raw_prices = download_prices(all_tickers, cfg.data.start_date, cfg.data.end_date)
-    prices, _ = validate_and_clean(raw_prices, cfg.data.min_history)
+    raw_prices = download_prices(all_tickers, getattr(cfg.data, "start_date", "2018-01-01"), getattr(cfg.data, "end_date", "2025-01-01"))
+    prices, _ = validate_and_clean(raw_prices, getattr(cfg.data, "min_history", 252))
     universe = build_sector_universe(prices, cfg.sectors)
 
     # Screen
@@ -521,6 +613,7 @@ if __name__ == "__main__":
     window_desc = "full history" if not effective_lookback else f"{effective_lookback} days"
     print(f"\nRunning cointegration screening "
           f"(coint window: {window_desc}, Chow: full history)...")
+          
     ranked_pairs = screen_all_sectors(universe, cfg.screen,
                                        top_n_per_sector=5,
                                        lookback_days=effective_lookback)

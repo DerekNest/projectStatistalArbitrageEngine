@@ -158,7 +158,7 @@ class ScreenConfig:
     chow_significance:      float = 0.001  
 
     # Universe: only test same-sector pairs
-    cross_sector:           bool  = False
+    cross_sector:           bool  = True  # Whether to allow cross-sector pairs (generally less stable, but may find hidden gems)
 
 
 # ---------------------------------------------------------------------------
