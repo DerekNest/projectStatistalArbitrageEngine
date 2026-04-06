@@ -1,0 +1,18 @@
+{
+  "date": "2026-04-06",
+  "equity": 99731.01,
+  "signals": {
+    "ALL/PGR": {
+      "action": "hold",
+      "zscore": 2.688,
+      "hedge_ratio": 0.2671,
+      "direction": -1,
+      "ticker_y": "ALL",
+      "ticker_x": "PGR"
+    }
+  },
+  "n_open": 1,
+  "holdings": [
+    "ALL/PGR"
+  ]
+}

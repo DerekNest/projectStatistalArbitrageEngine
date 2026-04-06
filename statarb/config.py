@@ -28,40 +28,59 @@ from typing import List
 #   the other. The spread widens without bound — the exact opposite of what we need.
 # ---------------------------------------------------------------------------
 SECTORS = {
-    # Original core — proven cointegration in backtests
+    # ── Core (proven cointegration across all 4 WF folds) ──────────────────
     "financials":   ["JPM",  "BAC",  "WFC",  "GS",   "MS",   "C",    "BLK",
                      "SCHW", "USB",  "PNC",  "AXP",  "COF",  "TFC",  "FITB"],
+
     "energy":       ["XOM",  "CVX",  "COP",  "SLB",  "EOG",  "MPC",
                      "PSX",  "VLO",  "OXY",  "HAL",  "DVN",  "BKR"],
+
     "healthcare":   ["JNJ",  "UNH",  "PFE",  "ABBV", "MRK",  "TMO",  "ABT",
                      "DHR",  "BMY",  "AMGN", "GILD", "ISRG", "VRTX", "REGN"],
 
-    # New: Utilities — regulated monopolies, anchored to rate environment.
-    # Intra-sector pairs (e.g. AEP/EXC, NEE/DUK) are historically very stable.
+    # ── Proven additions (strong shared factor exposure) ───────────────────
+    # Regulated monopolies anchored to rate environment. NEE/DUK, AEP/EXC
+    # are historically among the most stable pairs in the S&P 500.
     "utilities":    ["NEE",  "DUK",  "SO",   "D",    "AEP",  "EXC",  "SRE",
                      "PEG",  "XEL",  "WEC",  "ES",   "ETR",  "PPL",  "EIX"],
 
-    # New: Materials — commodity price anchoring drives tight inter-stock spreads.
-    # Miners, chemicals, and packaging companies move together on input costs.
+    # Actuarial pricing + rate sensitivity + similar investment portfolios.
+    # Added: L (Loews), RNR (RenaissanceRe), WRB (W.R. Berkley) —
+    # pure P&C writers with tighter shared factor exposure than life insurers.
     "insurance":    ["TRV",  "CB",   "ALL",  "PGR",  "MET",  "PRU",
-                 "AFL",  "AIG",  "HIG",  "UNM"],
-    
-    # New: Consumer Staples — NOT consumer discretionary. Staples (food, household
-    # products, tobacco) are slow-moving, defensive businesses with predictable
-    # cash flows. PG/CL and KO/PEP are the classic pairs-trading textbook examples.
-    "homebuilders": ["DHI",  "LEN",  "PHM",  "NVR",  "TOL",  "MDC",
-                 "KBH",  "MHO",  "TPH",  "TMHC"],
-    
-    # New: Industrials — capital goods manufacturers share input costs and
-    # demand cycles. HON/EMR, GE/MMM have historically cointegrated well.
+                     "AFL",  "AIG",  "HIG",  "UNM",  "L",    "WRB",  "RNR"],
+
+    # Shared input costs (lumber, land, labour) + mortgage rate exposure.
+    # Added: CVCO, SKY — manufactured housing, same rate/cost drivers,
+    # less correlated with luxury builders so may produce novel pairs.
+    "homebuilders": ["DHI",  "LEN",  "PHM",  "NVR",  "TOL",
+                     "KBH",  "MHO",  "TPH",  "TMHC", "CVCO", "SKY"],
+
+    # Capital goods, shared input costs and demand cycles.
     "industrials":  ["HON",  "MMM",  "GE",   "EMR",  "ETN",  "PH",   "ROK",
                      "IR",   "FTV",  "AME",  "ITW",  "DOV",  "XYL",  "GWW"],
 
-    # New: Real Estate — REITs are rate-sensitive, sector-anchored, and
-    # capital-constrained. Sub-sector pairs (office/office, retail/retail)
-    # share tenant-mix and cap rate exposure.
+    # Rate-sensitive REITs with sector-anchored cap rate exposure.
     "realestate":   ["PLD",  "AMT",  "EQIX", "PSA",  "SPG",  "O",    "VICI",
-                     "WY",   "EQR",  "AVB",   "ESS",  "MAA",  "UDR"],
+                     "WY",   "EQR",  "AVB",  "ESS",  "MAA",  "UDR"],
+
+    # ── New: Telecom ────────────────────────────────────────────────────────
+    # T/VZ is one of the most consistently cointegrated pairs in the S&P 500.
+    # Regulated duopoly, near-identical revenue mix, shared capex cycle
+    # (spectrum auctions, 5G buildout). TMUS added as a third leg —
+    # may pair with either, screen will decide.
+    # LUMN excluded: credit distress makes it structurally incomparable.
+    "telecom":      ["T",    "VZ",   "TMUS"],
+
+    # ── New: Consumer Staples ───────────────────────────────────────────────
+    # KO/PEP and PG/CL are the canonical pairs-trading textbook examples.
+    # Previously failed your correlation pre-filter — likely due to a mixed
+    # universe. Isolated to tight sub-sectors here:
+    #   Beverages: KO, PEP, MNST, KDP
+    #   HPC/Food:  PG, CL, KHC, GIS, CPB, MKC
+    # Tobacco (MO/PM) excluded: diverged post-spinoff on geographic exposure.
+    "staples":      ["KO",   "PEP",  "MNST", "KDP",
+                     "PG",   "CL",   "KHC",  "GIS",  "CPB",  "MKC"],
 }
 
 ALL_TICKERS: List[str] = [t for tickers in SECTORS.values() for t in tickers]

@@ -1,5 +1,19 @@
 {
-  "positions": {},
+  "positions": {
+    "BAC/AXP": {
+      "pair": "BAC/AXP",
+      "direction": 1,
+      "entry_date": "2026-03-28",
+      "entry_price_y": 46.970001220703125,
+      "entry_price_x": 292.2699890136719,
+      "shares_y": 255.48,
+      "shares_x": -280.7,
+      "hedge_ratio": 1.0987,
+      "entry_zscore": -2.292,
+      "order_id_y": "6a2008ab-ee7f-4dce-a43b-f0e4407018ac",
+      "order_id_x": "94b5eff7-8538-4c60-af1c-a34fbc668482"
+    }
+  },
   "last_rescreen": "2026-03-20",
   "equity": 100000.0,
   "blacklisted": [],

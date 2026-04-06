@@ -1,7 +1,21 @@
 {
-  "positions": {},
+  "positions": {
+    "ALL/PGR": {
+      "pair": "ALL/PGR",
+      "direction": -1,
+      "entry_date": "2026-04-06",
+      "entry_price_y": 207.02999877929688,
+      "entry_price_x": 195.25,
+      "shares_y": -57.81,
+      "shares_x": 15.44,
+      "hedge_ratio": 0.2671,
+      "entry_zscore": 2.688,
+      "order_id_y": "687a4cb9-2ddc-48ee-9fcc-f00e8a2d74f1",
+      "order_id_x": "9ef4af67-07a2-4fa2-8ae0-77f50bec56b4"
+    }
+  },
   "last_rescreen": "2026-03-27",
-  "equity": 100000.0,
+  "equity": 99731.01,
   "blacklisted": [],
   "trade_log": []
 }

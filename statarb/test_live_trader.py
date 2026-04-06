@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import yfinance as yf
 
-ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY",    "PK5GXRKMY6PQNZVYB5G5AFNKFQ")
-ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "57jckVyEo7g3njjpX3PmVpKqHLDrZsPxzzPWsdYpdT22")
+ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY",    "PK5FYI22HSIQTS5VXI3H4I7XIQ")
+ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "ER31GWFQaWT9GwAZFT9vGdfqyWMw9o3aEFhi97VbdEn2")
 BASE_URL          = "https://paper-api.alpaca.markets"
 
 HEADERS = {

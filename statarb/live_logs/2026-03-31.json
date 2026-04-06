@@ -1,0 +1,18 @@
+{
+  "date": "2026-03-31",
+  "equity": 99687.56,
+  "signals": {
+    "BAC/AXP": {
+      "action": "hold",
+      "zscore": -1.96,
+      "hedge_ratio": 1.0671,
+      "direction": 1,
+      "ticker_y": "BAC",
+      "ticker_x": "AXP"
+    }
+  },
+  "n_open": 1,
+  "holdings": [
+    "BAC/AXP"
+  ]
+}
